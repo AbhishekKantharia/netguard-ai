@@ -19,6 +19,7 @@ class handler(BaseHTTPRequestHandler):
         node_id = data.get("node_id", "unknown")
         metrics = data.get("metrics", {})
         timestamp = data.get("timestamp", "")
+        metrics["_node_id"] = node_id
 
         result = engine.detect(metrics)
         result["node_id"] = node_id

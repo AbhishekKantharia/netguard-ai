@@ -14,8 +14,8 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         response = {
             "status": "ok",
-            "version": "0.1.0",
-            "detector_ready": engine.ready,
+            "version": "1.0.0",
+            "model_status": "trained" if engine.ready else "untrained",
             "platform": "vercel-serverless",
         }
 

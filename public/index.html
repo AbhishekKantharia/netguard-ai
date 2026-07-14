@@ -123,6 +123,11 @@
                 ? `<span class="px-2 py-1 rounded-full bg-red-500/20 text-red-400 text-xs font-medium border border-red-500/30">ANOMALY</span>`
                 : `<span class="px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium border border-green-500/30">NORMAL</span>`;
 
+            const score = typeof r.combined_score === 'number' ? r.combined_score.toFixed(6) : 'N/A';
+            const aeErr = typeof r.reconstruction_error === 'number' ? r.reconstruction_error.toFixed(6) : 'N/A';
+            const lstmErr = typeof r.prediction_error === 'number' ? r.prediction_error.toFixed(6) : 'N/A';
+            const thresh = typeof r.threshold === 'number' ? r.threshold.toFixed(4) : 'N/A';
+
             document.getElementById('result-panel').innerHTML = `
                 <div class="space-y-2">
                     <div class="flex items-center gap-2">${badge}
@@ -130,9 +135,11 @@
                     </div>
                     <div class="grid grid-cols-2 gap-2 mt-3">
                         <div><span class="text-slate-500">Severity:</span> <span class="${color} font-medium">${r.severity}</span></div>
-                        <div><span class="text-slate-500">Score:</span> <span class="text-slate-300">${r.combined_score?.toFixed(4) || 'N/A'}</span></div>
-                        <div><span class="text-slate-500">AE Error:</span> <span class="text-slate-300">${r.reconstruction_error?.toFixed(4) || 'N/A'}</span></div>
-                        <div><span class="text-slate-500">LSTM Error:</span> <span class="text-slate-300">${r.prediction_error?.toFixed(4) || 'N/A'}</span></div>
+                        <div><span class="text-slate-500">Score:</span> <span class="text-slate-300">${score}</span></div>
+                        <div><span class="text-slate-500">AE Error:</span> <span class="text-slate-300">${aeErr}</span></div>
+                        <div><span class="text-slate-500">LSTM Error:</span> <span class="text-slate-300">${lstmErr}</span></div>
+                        <div><span class="text-slate-500">Threshold:</span> <span class="text-slate-300">${thresh}</span></div>
+                        <div><span class="text-slate-500">Dominant:</span> <span class="text-slate-300">${r.metric_name || 'N/A'} (${typeof r.value === 'number' ? r.value.toFixed(2) : 'N/A'})</span></div>
                     </div>
                 </div>`;
         }
@@ -156,8 +163,9 @@
             try {
                 const resp = await fetch(API_BASE + '/health');
                 const h = await resp.json();
-                document.getElementById('stat-detector').textContent = h.detector_ready ? 'Ready' : 'Untrained';
-                document.getElementById('stat-detector').className = `text-2xl font-bold mt-1 ${h.detector_ready ? 'text-green-400' : 'text-amber-400'}`;
+                const ready = h.model_status === 'trained' || h.model_status === 'degraded';
+                document.getElementById('stat-detector').textContent = h.model_status || 'Unknown';
+                document.getElementById('stat-detector').className = `text-2xl font-bold mt-1 ${ready ? 'text-green-400' : 'text-amber-400'}`;
             } catch {}
         }
 
