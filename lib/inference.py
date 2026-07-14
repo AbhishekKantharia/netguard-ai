@@ -97,15 +97,24 @@ class InferenceEngine:
 
         node_id = metrics.get("_node_id", "default")
         hist = self._history.get(node_id, [])
+        if not hist and self._lstm_session and self._means is not None:
+            defaults_vec = np.array(
+                [self._DEFAULTS.get(m, 0.0) for m in METRIC_NAMES], dtype=np.float32
+            )
+            baseline = ((defaults_vec - self._means) / self._stds).tolist()
+            hist = [baseline] * 29
         hist.append(norm_vector.flatten().tolist())
         if len(hist) > 30:
             hist = hist[-30:]
         self._history[node_id] = hist
 
         if self._lstm_session and len(hist) >= 30:
-            seq = np.array(hist[-30:], dtype=np.float32).reshape(1, 30, -1)
-            predicted = self._lstm_session.run(None, {"input": seq})[0]
-            lstm_error = float(np.mean((norm_vector - predicted) ** 2))
+            try:
+                seq = np.array(hist[-30:], dtype=np.float32).reshape(1, 30, -1)
+                predicted = self._lstm_session.run(None, {"input": seq})[0]
+                lstm_error = float(np.mean((norm_vector - predicted) ** 2))
+            except Exception:
+                lstm_error = 0.0
 
         combined = 0.6 * ae_error + 0.4 * lstm_error
 
