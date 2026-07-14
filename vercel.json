@@ -1,6 +1,17 @@
 {
   "version": 2,
   "outputDirectory": "public",
+  "functions": {
+    "api/detect.py": {
+      "includeFiles": "api/models/**"
+    },
+    "api/health.py": {
+      "includeFiles": "api/models/**"
+    },
+    "api/stats.py": {
+      "includeFiles": "api/models/**"
+    }
+  },
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/$1" }

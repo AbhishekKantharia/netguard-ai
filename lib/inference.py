@@ -18,6 +18,8 @@ METRIC_NAMES = [
 ]
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "public", "models")
+ALT_MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
+API_MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "api", "models")
 
 
 class InferenceEngine:
@@ -35,19 +37,21 @@ class InferenceEngine:
     def _load_models(self):
         if not HAS_ONNX:
             return
-        ae_path = os.path.join(MODEL_DIR, "autoencoder.onnx")
-        lstm_path = os.path.join(MODEL_DIR, "lstm_predictor.onnx")
-        stats_path = os.path.join(MODEL_DIR, "norm_stats.npz")
-
-        if os.path.exists(ae_path):
-            self._ae_session = ort.InferenceSession(ae_path)
-        if os.path.exists(lstm_path):
-            self._lstm_session = ort.InferenceSession(lstm_path)
-        if os.path.exists(stats_path):
-            stats = np.load(stats_path)
-            self._means = stats["means"]
-            self._stds = stats["stds"]
-            self._threshold = float(stats["threshold"][0])
+        for base in [MODEL_DIR, ALT_MODEL_DIR, API_MODEL_DIR, "/var/task/public/models"]:
+            ae_path = os.path.join(base, "autoencoder.onnx")
+            lstm_path = os.path.join(base, "lstm_predictor.onnx")
+            stats_path = os.path.join(base, "norm_stats.npz")
+            if os.path.exists(ae_path):
+                self._ae_session = ort.InferenceSession(ae_path)
+                if os.path.exists(lstm_path):
+                    self._lstm_session = ort.InferenceSession(lstm_path)
+                if os.path.exists(stats_path):
+                    stats = np.load(stats_path)
+                    self._means = stats["means"]
+                    self._stds = stats["stds"]
+                    self._threshold = float(stats["threshold"][0])
+                self._fitted = True
+                return
         self._fitted = self._ae_session is not None
 
     @property
@@ -61,10 +65,26 @@ class InferenceEngine:
             return (vector - self._means) / self._stds
         return vector
 
+    _DEFAULTS = {
+        "cpu_usage": 40.0,
+        "memory_usage": 58.0,
+        "bandwidth_utilization": 45.0,
+        "packet_loss": 0.5,
+        "latency_ms": 20.0,
+        "jitter_ms": 4.0,
+        "error_rate": 0.2,
+        "throughput_mbps": 250.0,
+        "connection_count": 2000.0,
+        "retransmit_rate": 0.15,
+        "queue_depth": 50.0,
+        "temperature_celsius": 50.0,
+    }
+
     def detect(
         self, metrics: dict[str, float], history: list[list[float]] | None = None
     ) -> dict:
-        values = [metrics.get(m, 0.0) for m in METRIC_NAMES]
+        self.ready
+        values = [metrics.get(m, self._DEFAULTS.get(m, 0.0)) for m in METRIC_NAMES]
         raw_vector = np.array(values, dtype=np.float32).reshape(1, -1)
         norm_vector = self._normalize(raw_vector)
 

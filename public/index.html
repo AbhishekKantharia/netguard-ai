@@ -103,11 +103,12 @@
             };
 
             try {
-                const resp = await fetch(API_BASE + '/detect', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ node_id: nodeId, metrics, timestamp: new Date().toISOString() }),
+                const params = new URLSearchParams({
+                    node_id: nodeId,
+                    timestamp: new Date().toISOString(),
+                    metrics: JSON.stringify(metrics),
                 });
+                const resp = await fetch(API_BASE + '/detect?' + params.toString());
                 const result = await resp.json();
                 renderResult(result);
                 addEvent(result);
