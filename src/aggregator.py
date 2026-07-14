@@ -71,8 +71,8 @@ class NetworkAggregator:
 
     def train(
         self,
-        epochs: int = 50,
-        num_samples: int = 10000,
+        epochs: int = 30,
+        num_samples: int = 800,
         test_ratio: float = 0.2,
     ) -> dict:
         normal_data = generate_normal_data(num_samples)
