@@ -85,6 +85,7 @@ class InferenceEngine:
     ) -> dict:
         self.ready
         values = [metrics.get(m, self._DEFAULTS.get(m, 0.0)) for m in METRIC_NAMES]
+        resolved = {m: round(values[i], 4) for i, m in enumerate(METRIC_NAMES)}
         raw_vector = np.array(values, dtype=np.float32).reshape(1, -1)
         norm_vector = self._normalize(raw_vector)
 
@@ -135,6 +136,7 @@ class InferenceEngine:
             "prediction_error": round(lstm_error, 6),
             "threshold": round(self._threshold, 6),
             "model_status": "trained" if self._fitted else "untrained",
+            "metrics_used": resolved,
         }
 
 

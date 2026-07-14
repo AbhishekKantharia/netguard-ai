@@ -11,6 +11,8 @@
         .card { backdrop-filter: blur(12px); background: rgba(15, 23, 42, 0.8); }
         .node-row:hover { background: rgba(30, 41, 59, 0.6); }
         .node-row.selected { background: rgba(6, 182, 212, 0.1); border-color: rgba(6, 182, 212, 0.4); }
+        .detect-link { cursor: pointer; }
+        .detect-link:hover { color: rgb(34, 211, 238); text-decoration: underline; }
     </style>
 </head>
 <body class="bg-slate-950 text-white min-h-screen font-sans">
@@ -56,11 +58,55 @@
                 <form id="detect-form" class="space-y-3">
                     <input id="node-id" type="text" placeholder="Node ID (e.g., node-001)"
                         class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
-                    <div class="grid grid-cols-2 gap-2">
-                        <input id="m-cpu" type="number" placeholder="CPU %" value="45" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
-                        <input id="m-mem" type="number" placeholder="Memory %" value="62" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
-                        <input id="m-lat" type="number" placeholder="Latency ms" value="15" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
-                        <input id="m-loss" type="number" placeholder="Packet Loss %" value="0.5" step="0.01" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+                    <div class="grid grid-cols-3 gap-2" id="metric-inputs">
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">CPU %</label>
+                            <input id="m-cpu_usage" type="number" value="45" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Memory %</label>
+                            <input id="m-memory_usage" type="number" value="62" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Bandwidth %</label>
+                            <input id="m-bandwidth_utilization" type="number" value="45" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Packet Loss %</label>
+                            <input id="m-packet_loss" type="number" value="0.5" step="0.01" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Latency ms</label>
+                            <input id="m-latency_ms" type="number" value="15" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Jitter ms</label>
+                            <input id="m-jitter_ms" type="number" value="4" step="0.1" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Error Rate %</label>
+                            <input id="m-error_rate" type="number" value="0.2" step="0.01" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Throughput Mbps</label>
+                            <input id="m-throughput_mbps" type="number" value="250" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Connections</label>
+                            <input id="m-connection_count" type="number" value="2000" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Retransmit %</label>
+                            <input id="m-retransmit_rate" type="number" value="0.15" step="0.01" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Queue Depth</label>
+                            <input id="m-queue_depth" type="number" value="50" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-0.5">Temp °C</label>
+                            <input id="m-temperature_celsius" type="number" value="50" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-cyan-500" />
+                        </div>
                     </div>
                     <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-medium py-2 rounded-lg transition text-sm">
                         Detect Anomaly
@@ -89,12 +135,17 @@
 
             <!-- Node History Panel -->
             <div class="card rounded-xl p-6 border border-slate-700/50">
-                <h2 class="text-lg font-semibold mb-4 text-slate-200">
-                    Node History
-                    <span id="history-node-label" class="text-sm font-normal text-slate-500 ml-2"></span>
-                </h2>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-slate-200">
+                        Node History
+                        <span id="history-node-label" class="text-sm font-normal text-slate-500 ml-2"></span>
+                    </h2>
+                    <button id="re-detect-btn" class="hidden text-xs bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded-lg transition" onclick="reDetectSelectedNode()">
+                        Re-detect this node
+                    </button>
+                </div>
                 <div id="node-history-panel" class="text-sm text-slate-400">
-                    <p>Click a detection event to view node history...</p>
+                    <p>Click a node name or detection event to view history...</p>
                 </div>
             </div>
         </div>
@@ -107,6 +158,17 @@
 
     <script>
         const API_BASE = window.location.origin + '/api';
+        const METRIC_NAMES = [
+            'cpu_usage', 'memory_usage', 'bandwidth_utilization', 'packet_loss',
+            'latency_ms', 'jitter_ms', 'error_rate', 'throughput_mbps',
+            'connection_count', 'retransmit_rate', 'queue_depth', 'temperature_celsius',
+        ];
+        const METRIC_LABELS = {
+            cpu_usage: 'CPU %', memory_usage: 'Memory %', bandwidth_utilization: 'BW %',
+            packet_loss: 'Loss %', latency_ms: 'Latency ms', jitter_ms: 'Jitter ms',
+            error_rate: 'Err %', throughput_mbps: 'Tput Mbps', connection_count: 'Conns',
+            retransmit_rate: 'Retrans %', queue_depth: 'Queue', temperature_celsius: 'Temp °C',
+        };
         const events = [];
         const nodeHistories = {};
         let selectedNodeId = null;
@@ -114,12 +176,11 @@
         document.getElementById('detect-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const nodeId = document.getElementById('node-id').value || 'node-' + Math.floor(Math.random() * 999).toString().padStart(3, '0');
-            const metrics = {
-                cpu_usage: parseFloat(document.getElementById('m-cpu').value) || 45,
-                memory_usage: parseFloat(document.getElementById('m-mem').value) || 62,
-                latency_ms: parseFloat(document.getElementById('m-lat').value) || 15,
-                packet_loss: parseFloat(document.getElementById('m-loss').value) || 0.5,
-            };
+            const metrics = {};
+            METRIC_NAMES.forEach(m => {
+                const el = document.getElementById('m-' + m);
+                if (el && el.value !== '') metrics[m] = parseFloat(el.value);
+            });
 
             const loadingEl = document.getElementById('detect-loading');
             loadingEl.classList.remove('hidden');
@@ -154,11 +215,21 @@
             const lstmErr = typeof r.prediction_error === 'number' ? r.prediction_error.toFixed(6) : 'N/A';
             const thresh = typeof r.threshold === 'number' ? r.threshold.toFixed(4) : 'N/A';
 
+            let healHtml = '';
+            if (r.healing_event) {
+                healHtml = `
+                    <div class="mt-3 p-2 rounded bg-green-500/10 border border-green-500/20">
+                        <span class="text-green-400 text-xs font-medium">Healing:</span>
+                        <span class="text-xs text-slate-300">${r.healing_event.strategy}</span>
+                        <span class="text-xs text-slate-500">— ${r.healing_event.resolution}</span>
+                    </div>`;
+            }
+
+            const nodeLink = `<span class="detect-link text-cyan-400" onclick="detectNode('${r.node_id}')">${r.node_id}</span>`;
+
             document.getElementById('result-panel').innerHTML = `
                 <div class="space-y-2">
-                    <div class="flex items-center gap-2">${badge}
-                        <span class="text-slate-300 font-medium">${r.node_id}</span>
-                    </div>
+                    <div class="flex items-center gap-2">${badge} ${nodeLink}</div>
                     <div class="grid grid-cols-2 gap-2 mt-3">
                         <div><span class="text-slate-500">Severity:</span> <span class="${color} font-medium">${r.severity}</span></div>
                         <div><span class="text-slate-500">Score:</span> <span class="text-slate-300">${score}</span></div>
@@ -167,31 +238,43 @@
                         <div><span class="text-slate-500">Threshold:</span> <span class="text-slate-300">${thresh}</span></div>
                         <div><span class="text-slate-500">Dominant:</span> <span class="text-slate-300">${r.metric_name || 'N/A'} (${typeof r.value === 'number' ? r.value.toFixed(2) : 'N/A'})</span></div>
                     </div>
+                    ${renderMetricsGrid(r.metrics_used)}
+                    ${healHtml}
                 </div>`;
+        }
+
+        function renderMetricsGrid(metrics) {
+            if (!metrics) return '';
+            let html = '<div class="grid grid-cols-4 gap-x-3 gap-y-1 mt-3 pt-3 border-t border-slate-700/50">';
+            METRIC_NAMES.forEach(m => {
+                const v = metrics[m];
+                const val = typeof v === 'number' ? v.toFixed(2) : 'N/A';
+                html += `<div class="flex justify-between text-xs"><span class="text-slate-500">${METRIC_LABELS[m]}:</span><span class="text-slate-300">${val}</span></div>`;
+            });
+            html += '</div>';
+            return html;
         }
 
         function addEvent(r) {
             events.unshift(r);
             if (events.length > 50) events.pop();
-
             if (!nodeHistories[r.node_id]) nodeHistories[r.node_id] = [];
             nodeHistories[r.node_id].unshift(r);
             if (nodeHistories[r.node_id].length > 30) nodeHistories[r.node_id].pop();
-
             renderEventLog();
             if (selectedNodeId === r.node_id) renderNodeHistory(r.node_id);
         }
 
         function renderEventLog() {
             const log = document.getElementById('event-log');
-            log.innerHTML = events.map((e, i) => {
+            log.innerHTML = events.map(e => {
                 const dot = e.is_anomaly ? 'bg-red-400' : 'bg-green-400';
                 const selected = selectedNodeId === e.node_id ? 'node-row selected' : 'node-row';
                 const ts = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '--:--:--';
                 return `<div class="flex items-center gap-3 p-2 rounded-lg bg-slate-800/50 cursor-pointer border border-transparent ${selected}" onclick="selectNode('${e.node_id}')">
                     <span class="w-2 h-2 rounded-full ${dot} flex-shrink-0"></span>
                     <span class="text-xs text-slate-500">${ts}</span>
-                    <span class="text-sm text-slate-300">${e.node_id}</span>
+                    <span class="text-sm text-slate-300 detect-link" onclick="event.stopPropagation(); detectNode('${e.node_id}')">${e.node_id}</span>
                     <span class="text-xs px-2 py-0.5 rounded ${e.is_anomaly ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}">${e.severity}</span>
                 </div>`;
             }).join('');
@@ -206,7 +289,9 @@
         function renderNodeHistory(nodeId) {
             const panel = document.getElementById('node-history-panel');
             const label = document.getElementById('history-node-label');
+            const redetectBtn = document.getElementById('re-detect-btn');
             label.textContent = '(' + nodeId + ')';
+            redetectBtn.classList.remove('hidden');
 
             const hist = nodeHistories[nodeId];
             if (!hist || hist.length === 0) {
@@ -236,7 +321,7 @@
                         </div>
                     </div>
                     <div class="text-xs text-slate-500">Latest: <span class="${sevColor} font-medium">${latestSeverity}</span></div>
-                    <div class="space-y-1 max-h-48 overflow-y-auto">`;
+                    <div class="space-y-3 max-h-96 overflow-y-auto">`;
 
             hist.forEach((e, i) => {
                 const dot = e.is_anomaly ? 'bg-red-400' : 'bg-green-400';
@@ -244,14 +329,37 @@
                 const score = typeof e.combined_score === 'number' ? e.combined_score.toFixed(4) : 'N/A';
                 const ae = typeof e.reconstruction_error === 'number' ? e.reconstruction_error.toFixed(4) : 'N/A';
                 const lstm = typeof e.prediction_error === 'number' ? e.prediction_error.toFixed(4) : 'N/A';
+                const sevClass = e.is_anomaly ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400';
+
+                let metricsHtml = '';
+                if (e.metrics_used) {
+                    metricsHtml = '<div class="grid grid-cols-4 gap-x-2 gap-y-0.5 mt-1.5 pl-4">';
+                    METRIC_NAMES.forEach(m => {
+                        const v = e.metrics_used[m];
+                        const val = typeof v === 'number' ? v.toFixed(1) : '-';
+                        const highlight = (e.metric_name === m) ? 'text-amber-400 font-medium' : 'text-slate-500';
+                        metricsHtml += `<div class="text-[10px] flex justify-between"><span class="${highlight}">${METRIC_LABELS[m]}:</span><span class="${highlight}">${val}</span></div>`;
+                    });
+                    metricsHtml += '</div>';
+                }
+
+                let healHtml = '';
+                if (e.healing_event) {
+                    healHtml = `<span class="text-[10px] text-green-400 ml-2">${e.healing_event.strategy}</span>`;
+                }
+
                 html += `
-                        <div class="flex items-center gap-2 p-1.5 rounded bg-slate-800/30">
-                            <span class="w-1.5 h-1.5 rounded-full ${dot} flex-shrink-0"></span>
-                            <span class="text-xs text-slate-500 w-16">${ts}</span>
-                            <span class="text-xs px-1.5 py-0.5 rounded ${e.is_anomaly ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}">${e.severity}</span>
-                            <span class="text-xs text-slate-400 ml-auto">AE:${ae}</span>
-                            <span class="text-xs text-slate-400">LSTM:${lstm}</span>
-                            <span class="text-xs text-slate-500 w-16 text-right">${score}</span>
+                        <div class="p-2 rounded bg-slate-800/30 border border-transparent hover:border-slate-600/50">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full ${dot} flex-shrink-0"></span>
+                                <span class="text-xs text-slate-500 w-16">${ts}</span>
+                                <span class="text-xs px-1.5 py-0.5 rounded ${sevClass}">${e.severity}</span>
+                                <span class="text-xs text-slate-400">Score: ${score}</span>
+                                <span class="text-xs text-slate-500">AE: ${ae}</span>
+                                <span class="text-xs text-slate-500">LSTM: ${lstm}</span>
+                                ${healHtml}
+                            </div>
+                            ${metricsHtml}
                         </div>`;
             });
 
@@ -259,11 +367,30 @@
             panel.innerHTML = html;
         }
 
+        function detectNode(nodeId) {
+            const hist = nodeHistories[nodeId];
+            if (hist && hist.length > 0 && hist[0].metrics_used) {
+                const m = hist[0].metrics_used;
+                document.getElementById('node-id').value = nodeId;
+                METRIC_NAMES.forEach(name => {
+                    const el = document.getElementById('m-' + name);
+                    if (el && m[name] !== undefined) el.value = m[name];
+                });
+            } else {
+                document.getElementById('node-id').value = nodeId;
+            }
+            document.getElementById('node-id').focus();
+            document.getElementById('detect-form').dispatchEvent(new Event('submit'));
+        }
+
+        function reDetectSelectedNode() {
+            if (selectedNodeId) detectNode(selectedNodeId);
+        }
+
         function updateStats() {
             const uniqueNodes = new Set(events.map(e => e.node_id));
             const activeAnomalies = events.filter(e => e.is_anomaly).length;
             const healingEvents = events.filter(e => e.healing_event && e.healing_event.success).length;
-
             document.getElementById('stat-nodes').textContent = uniqueNodes.size;
             document.getElementById('stat-anomalies').textContent = activeAnomalies;
             document.getElementById('stat-healing').textContent = healingEvents;
