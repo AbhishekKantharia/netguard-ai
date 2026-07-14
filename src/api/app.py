@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
 
     def _train():
         logger.info("Background: training and evaluating detector...")
-        _aggregator.train(epochs=30, num_samples=800)
+        _aggregator.train(epochs=30, num_samples=600)
         logger.info("Background: model status = %s", _aggregator.detector.status.value)
 
     threading.Thread(target=_train, daemon=True).start()
