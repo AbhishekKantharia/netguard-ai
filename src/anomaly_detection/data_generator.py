@@ -53,12 +53,12 @@ def generate_normal_data(
 
 
 def inject_anomalies(
-    data: np.ndarray, num_anomalies: int = 100, severity: float = 4.0, seed: int = 99
+    data: np.ndarray, num_anomalies: int = 100, severity: float = 6.0, seed: int = 99
 ) -> tuple[np.ndarray, list[dict]]:
     """Inject anomalies into normal data by spiking multiple metrics simultaneously.
 
     Anomalies are created by:
-    1. Spiking 2-4 metrics at once with 5-15x amplification
+    1. Spiking 2-4 metrics at once with 6-20x amplification
     2. Adding correlated noise across metrics
     3. Creating extreme outliers in critical metrics
 
@@ -76,7 +76,7 @@ def inject_anomalies(
         spike_info = []
 
         for metric_idx in metric_indices:
-            spike = severity * rng.uniform(4.0, 12.0)
+            spike = severity * rng.uniform(3.0, 8.0)
             original = anomalous[idx, metric_idx]
             anomalous[idx, metric_idx] = original * spike
             spike_info.append({

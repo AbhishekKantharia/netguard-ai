@@ -396,7 +396,7 @@ class AnomalyDetector:
             num_spikes = int(rng.integers(2, 5))
             metric_indices = rng.choice(base.shape[1], size=num_spikes, replace=False)
             for mi in metric_indices:
-                spike_factor = rng.uniform(15.0, 30.0)
+                spike_factor = rng.uniform(20.0, 40.0)
                 base[i, mi] *= spike_factor
 
         return torch.tensor(base, dtype=torch.float32).to(self.device)
