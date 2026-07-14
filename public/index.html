@@ -51,6 +51,58 @@
             </div>
         </div>
 
+        <!-- Live Network Probe -->
+        <div class="card rounded-xl p-6 border border-slate-700/50 mb-8">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <h2 class="text-lg font-semibold text-slate-200">Live Network Probe</h2>
+                    <span id="probe-status" class="text-xs text-slate-500">Click to start</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="flex items-center gap-2 text-xs text-slate-400">
+                        <input type="checkbox" id="auto-probe-toggle" class="rounded bg-slate-700 border-slate-600 text-cyan-500 focus:ring-cyan-500" />
+                        Auto-probe every
+                    </label>
+                    <select id="probe-interval" class="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-300">
+                        <option value="15">15s</option>
+                        <option value="30" selected>30s</option>
+                        <option value="60">60s</option>
+                        <option value="120">120s</option>
+                    </select>
+                    <button id="probe-btn" onclick="runProbe()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">
+                        Probe Now
+                    </button>
+                </div>
+            </div>
+            <div id="probe-targets" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+                <div class="bg-slate-800/60 rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-slate-500">Google</p>
+                    <p class="text-xs text-slate-400" id="probe-Google">--</p>
+                </div>
+                <div class="bg-slate-800/60 rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-slate-500">Cloudflare</p>
+                    <p class="text-xs text-slate-400" id="probe-Cloudflare">--</p>
+                </div>
+                <div class="bg-slate-800/60 rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-slate-500">GitHub</p>
+                    <p class="text-xs text-slate-400" id="probe-GitHub">--</p>
+                </div>
+                <div class="bg-slate-800/60 rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-slate-500">AWS</p>
+                    <p class="text-xs text-slate-400" id="probe-AWS">--</p>
+                </div>
+                <div class="bg-slate-800/60 rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-slate-500">Microsoft</p>
+                    <p class="text-xs text-slate-400" id="probe-Microsoft">--</p>
+                </div>
+                <div class="bg-slate-800/60 rounded-lg p-2 text-center">
+                    <p class="text-[10px] text-slate-500">Cloudflare DNS</p>
+                    <p class="text-xs text-slate-400" id="probe-Cloudflare DNS">--</p>
+                </div>
+            </div>
+            <div id="probe-history" class="flex gap-1 h-6 items-end"></div>
+        </div>
+
         <!-- Detection Panel -->
         <div class="grid md:grid-cols-2 gap-6 mb-8">
             <div class="card rounded-xl p-6 border border-slate-700/50">
@@ -408,6 +460,97 @@
 
         refreshStats();
         setInterval(refreshStats, 30000);
+
+        /* --- Live Network Probe --- */
+        let probeIntervalId = null;
+        let probeHistoryData = [];
+
+        async function runProbe() {
+            const statusEl = document.getElementById('probe-status');
+            const probeBtn = document.getElementById('probe-btn');
+            statusEl.textContent = 'Probing...';
+            statusEl.className = 'text-xs text-amber-400';
+            probeBtn.disabled = true;
+            probeBtn.classList.add('opacity-50');
+
+            try {
+                const resp = await fetch(API_BASE + '/probe');
+                const result = await resp.json();
+
+                probeBtn.disabled = false;
+                probeBtn.classList.remove('opacity-50');
+
+                if (result.error) {
+                    statusEl.textContent = 'Error: ' + result.error;
+                    statusEl.className = 'text-xs text-red-400';
+                    return;
+                }
+
+                if (result.probe_results) {
+                    result.probe_results.forEach(p => {
+                        const el = document.getElementById('probe-' + p.name);
+                        if (el) {
+                            if (p.success) {
+                                el.textContent = p.latency_ms + 'ms';
+                                el.className = 'text-xs ' + (p.latency_ms > 500 ? 'text-red-400' : p.latency_ms > 200 ? 'text-amber-400' : 'text-green-400');
+                            } else {
+                                el.textContent = 'FAIL';
+                                el.className = 'text-xs text-red-400';
+                            }
+                        }
+                    });
+                }
+
+                const avgLat = result.metrics_used ? result.metrics_used.latency_ms : 0;
+                probeHistoryData.push({ score: result.combined_score || 0, anomaly: result.is_anomaly, ts: Date.now() });
+                if (probeHistoryData.length > 40) probeHistoryData.shift();
+                renderProbeHistory();
+
+                const icon = result.is_anomaly ? '🔴' : '🟢';
+                statusEl.textContent = icon + ' Score: ' + (result.combined_score || 0).toFixed(3) + ' | Latency: ' + avgLat.toFixed(1) + 'ms | ' + new Date().toLocaleTimeString();
+                statusEl.className = 'text-xs ' + (result.is_anomaly ? 'text-red-400' : 'text-green-400');
+
+                renderResult(result);
+                addEvent(result);
+                updateStats();
+
+            } catch (err) {
+                probeBtn.disabled = false;
+                probeBtn.classList.remove('opacity-50');
+                statusEl.textContent = 'Error: ' + err.message;
+                statusEl.className = 'text-xs text-red-400';
+            }
+        }
+
+        function renderProbeHistory() {
+            const container = document.getElementById('probe-history');
+            if (probeHistoryData.length === 0) { container.innerHTML = ''; return; }
+            const maxScore = Math.max(...probeHistoryData.map(d => d.score), 1);
+            container.innerHTML = probeHistoryData.map(d => {
+                const h = Math.max(4, (d.score / maxScore) * 24);
+                const color = d.anomaly ? 'bg-red-500' : 'bg-emerald-500';
+                return `<div class="${color} rounded-sm flex-shrink-0 opacity-70 hover:opacity-100 transition" style="width:6px;height:${h}px" title="Score: ${d.score.toFixed(4)}"></div>`;
+            }).join('');
+        }
+
+        function startAutoProbe() {
+            stopAutoProbe();
+            const secs = parseInt(document.getElementById('probe-interval').value);
+            probeIntervalId = setInterval(runProbe, secs * 1000);
+        }
+
+        function stopAutoProbe() {
+            if (probeIntervalId) { clearInterval(probeIntervalId); probeIntervalId = null; }
+        }
+
+        document.getElementById('auto-probe-toggle').addEventListener('change', (e) => {
+            if (e.target.checked) startAutoProbe();
+            else stopAutoProbe();
+        });
+
+        document.getElementById('probe-interval').addEventListener('change', () => {
+            if (document.getElementById('auto-probe-toggle').checked) startAutoProbe();
+        });
     </script>
 </body>
 </html>
