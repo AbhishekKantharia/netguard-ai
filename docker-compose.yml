@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  netguard:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - NETGUARD_HOST=0.0.0.0
+      - NETGUARD_PORT=8000
+      - NETGUARD_ENV=production
+      - NETGUARD_ANOMALY_THRESHOLD=0.85
+      - NETGUARD_HEALING_ENABLED=true
+    volumes:
+      - ./models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetGuard AI - Network Self-Healing Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+        .card { backdrop-filter: blur(12px); background: rgba(15, 23, 42, 0.8); }
+    </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen font-sans">
+    <div class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                    NetGuard AI
+                </h1>
+                <p class="text-slate-400 text-sm mt-1">Predictive Network Self-Healing System</p>
+            </div>
+            <div id="status-badge" class="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800 border border-slate-700">
+                <span class="w-2 h-2 rounded-full bg-green-400 pulse-dot"></span>
+                <span class="text-sm text-slate-300">System Online</span>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="card rounded-xl p-4 border border-slate-700/50">
+                <p class="text-slate-400 text-xs uppercase tracking-wide">Nodes Monitored</p>
+                <p id="stat-nodes" class="text-2xl font-bold text-cyan-400 mt-1">0</p>
+            </div>
+            <div class="card rounded-xl p-4 border border-slate-700/50">
+                <p class="text-slate-400 text-xs uppercase tracking-wide">Active Anomalies</p>
+                <p id="stat-anomalies" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+            </div>
+            <div class="card rounded-xl p-4 border border-slate-700/50">
+                <p class="text-slate-400 text-xs uppercase tracking-wide">Healing Events</p>
+                <p id="stat-healing" class="text-2xl font-bold text-green-400 mt-1">0</p>
+            </div>
+            <div class="card rounded-xl p-4 border border-slate-700/50">
+                <p class="text-slate-400 text-xs uppercase tracking-wide">Detector Status</p>
+                <p id="stat-detector" class="text-2xl font-bold mt-1">--</p>
+            </div>
+        </div>
+
+        <!-- Detection Panel -->
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+            <div class="card rounded-xl p-6 border border-slate-700/50">
+                <h2 class="text-lg font-semibold mb-4 text-slate-200">Run Anomaly Detection</h2>
+                <form id="detect-form" class="space-y-3">
+                    <input id="node-id" type="text" placeholder="Node ID (e.g., node-001)"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+                    <div class="grid grid-cols-2 gap-2">
+                        <input id="m-cpu" type="number" placeholder="CPU %" value="45" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+                        <input id="m-mem" type="number" placeholder="Memory %" value="62" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+                        <input id="m-lat" type="number" placeholder="Latency ms" value="15" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+                        <input id="m-loss" type="number" placeholder="Packet Loss %" value="0.5" step="0.01" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500" />
+                    </div>
+                    <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-medium py-2 rounded-lg transition text-sm">
+                        Detect Anomaly
+                    </button>
+                </form>
+            </div>
+
+            <div class="card rounded-xl p-6 border border-slate-700/50">
+                <h2 class="text-lg font-semibold mb-4 text-slate-200">Detection Result</h2>
+                <div id="result-panel" class="text-sm text-slate-400">
+                    <p>Submit metrics to see results...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="card rounded-xl p-6 border border-slate-700/50">
+            <h2 class="text-lg font-semibold mb-4 text-slate-200">Recent Detections</h2>
+            <div id="event-log" class="space-y-2 max-h-64 overflow-y-auto">
+                <p class="text-sm text-slate-500">No events yet...</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-8 text-center text-slate-600 text-xs">
+            Built for Deutsche Telekom Digital Labs Challenge | AI-Native Telecom
+        </footer>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api';
+        const events = [];
+
+        document.getElementById('detect-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nodeId = document.getElementById('node-id').value || 'node-' + Math.floor(Math.random() * 999).toString().padStart(3, '0');
+            const metrics = {
+                cpu_usage: parseFloat(document.getElementById('m-cpu').value) || 45,
+                memory_usage: parseFloat(document.getElementById('m-mem').value) || 62,
+                latency_ms: parseFloat(document.getElementById('m-lat').value) || 15,
+                packet_loss: parseFloat(document.getElementById('m-loss').value) || 0.5,
+            };
+
+            try {
+                const resp = await fetch(API_BASE + '/detect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node_id: nodeId, metrics, timestamp: new Date().toISOString() }),
+                });
+                const result = await resp.json();
+                renderResult(result);
+                addEvent(result);
+            } catch (err) {
+                document.getElementById('result-panel').innerHTML =
+                    `<p class="text-red-400">Error: ${err.message}</p>`;
+            }
+        });
+
+        function renderResult(r) {
+            const color = r.is_anomaly ? 'text-red-400' : 'text-green-400';
+            const badge = r.is_anomaly
+                ? `<span class="px-2 py-1 rounded-full bg-red-500/20 text-red-400 text-xs font-medium border border-red-500/30">ANOMALY</span>`
+                : `<span class="px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium border border-green-500/30">NORMAL</span>`;
+
+            document.getElementById('result-panel').innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2">${badge}
+                        <span class="text-slate-300 font-medium">${r.node_id}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 mt-3">
+                        <div><span class="text-slate-500">Severity:</span> <span class="${color} font-medium">${r.severity}</span></div>
+                        <div><span class="text-slate-500">Score:</span> <span class="text-slate-300">${r.combined_score?.toFixed(4) || 'N/A'}</span></div>
+                        <div><span class="text-slate-500">AE Error:</span> <span class="text-slate-300">${r.reconstruction_error?.toFixed(4) || 'N/A'}</span></div>
+                        <div><span class="text-slate-500">LSTM Error:</span> <span class="text-slate-300">${r.prediction_error?.toFixed(4) || 'N/A'}</span></div>
+                    </div>
+                </div>`;
+        }
+
+        function addEvent(r) {
+            events.unshift(r);
+            if (events.length > 20) events.pop();
+            const log = document.getElementById('event-log');
+            log.innerHTML = events.map(e => {
+                const dot = e.is_anomaly ? 'bg-red-400' : 'bg-green-400';
+                return `<div class="flex items-center gap-3 p-2 rounded-lg bg-slate-800/50">
+                    <span class="w-2 h-2 rounded-full ${dot} flex-shrink-0"></span>
+                    <span class="text-xs text-slate-500">${new Date(e.timestamp).toLocaleTimeString()}</span>
+                    <span class="text-sm text-slate-300">${e.node_id}</span>
+                    <span class="text-xs px-2 py-0.5 rounded ${e.is_anomaly ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}">${e.severity}</span>
+                </div>`;
+            }).join('');
+        }
+
+        async function refreshStats() {
+            try {
+                const resp = await fetch(API_BASE + '/health');
+                const h = await resp.json();
+                document.getElementById('stat-detector').textContent = h.detector_ready ? 'Ready' : 'Untrained';
+                document.getElementById('stat-detector').className = `text-2xl font-bold mt-1 ${h.detector_ready ? 'text-green-400' : 'text-amber-400'}`;
+            } catch {}
+        }
+
+        refreshStats();
+        setInterval(refreshStats, 30000);
+    </script>
+</body>
+</html>
