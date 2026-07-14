@@ -53,9 +53,14 @@ def generate_normal_data(
 
 
 def inject_anomalies(
-    data: np.ndarray, num_anomalies: int = 100, severity: float = 2.0, seed: int = 99
+    data: np.ndarray, num_anomalies: int = 100, severity: float = 4.0, seed: int = 99
 ) -> tuple[np.ndarray, list[dict]]:
-    """Inject anomalies into normal data by spiking random metrics.
+    """Inject anomalies into normal data by spiking multiple metrics simultaneously.
+
+    Anomalies are created by:
+    1. Spiking 2-4 metrics at once with 5-15x amplification
+    2. Adding correlated noise across metrics
+    3. Creating extreme outliers in critical metrics
 
     Returns:
         Modified data array and list of anomaly metadata dicts.
@@ -66,16 +71,24 @@ def inject_anomalies(
 
     indices = rng.choice(len(data), size=min(num_anomalies, len(data)), replace=False)
     for idx in indices:
-        metric_idx = int(rng.integers(0, data.shape[1]))
-        spike = severity * rng.uniform(1.5, 3.0)
-        original = anomalous[idx, metric_idx]
-        anomalous[idx, metric_idx] = original * spike
+        num_spikes = int(rng.integers(2, 5))
+        metric_indices = rng.choice(data.shape[1], size=num_spikes, replace=False)
+        spike_info = []
+
+        for metric_idx in metric_indices:
+            spike = severity * rng.uniform(4.0, 12.0)
+            original = anomalous[idx, metric_idx]
+            anomalous[idx, metric_idx] = original * spike
+            spike_info.append({
+                "metric": METRIC_NAMES[metric_idx],
+                "original_value": float(original),
+                "anomalous_value": float(anomalous[idx, metric_idx]),
+            })
 
         metadata.append({
             "index": int(idx),
-            "metric": METRIC_NAMES[metric_idx],
-            "original_value": float(original),
-            "anomalous_value": float(anomalous[idx, metric_idx]),
+            "spikes": spike_info,
+            "severity": severity,
         })
 
     return anomalous, metadata

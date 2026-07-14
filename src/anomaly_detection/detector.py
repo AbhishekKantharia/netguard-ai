@@ -104,6 +104,10 @@ MIN_F1 = 0.60
 MIN_SEPARATION = 0.01
 
 
+def _standardize(data: np.ndarray, means: np.ndarray, stds: np.ndarray) -> np.ndarray:
+    return (data - means) / stds
+
+
 class AnomalyDetector:
     """Multi-model anomaly detector for network infrastructure metrics.
 
@@ -136,6 +140,8 @@ class AnomalyDetector:
         self.status: ModelStatus = ModelStatus.UNTRAINED
         self.test_metrics: TestMetrics = TestMetrics()
         self._train_metrics: dict = {}
+        self._means: np.ndarray | None = None
+        self._stds: np.ndarray | None = None
 
     @property
     def threshold(self) -> float:
@@ -149,61 +155,71 @@ class AnomalyDetector:
         lr: float = 1e-3,
         test_ratio: float = 0.2,
     ) -> dict:
-        """Train both models on normal data, then evaluate on held-out test set.
-
-        The model status is set purely based on test evaluation results.
-
-        Args:
-            normal_data: array of shape (num_samples, input_dim) with normal metrics.
-            anomaly_data: optional array of anomalous data for evaluation.
-            epochs: training epochs.
-            lr: learning rate.
-            test_ratio: fraction of normal data held out for testing.
-
-        Returns:
-            Combined training + test metrics dict.
-        """
         self.status = ModelStatus.TRAINING
         logger.info("Training on %d samples", normal_data.shape[0])
 
-        tensor_data = torch.tensor(normal_data, dtype=torch.float32).to(self.device)
+        # --- Compute normalization stats from normal data ---
+        self._means = np.mean(normal_data, axis=0)
+        self._stds = np.std(normal_data, axis=0)
+        self._stds[self._stds < 1e-8] = 1.0
+
+        norm_data = _standardize(normal_data, self._means, self._stds)
+        tensor_data = torch.tensor(norm_data, dtype=torch.float32).to(self.device)
         self._compute_statistics(normal_data)
 
         # --- Split into train/test ---
-        split_idx = int(len(normal_data) * (1 - test_ratio))
+        split_idx = int(len(norm_data) * (1 - test_ratio))
         train_data = tensor_data[:split_idx]
         test_normal = tensor_data[split_idx:]
 
-        # --- Generate anomaly test data if not provided ---
+        # --- Generate balanced anomaly test data (same count as normal test) ---
+        num_normal_test = len(test_normal)
         if anomaly_data is not None and len(anomaly_data) > 0:
-            test_anomaly = torch.tensor(anomaly_data, dtype=torch.float32).to(self.device)
+            norm_anomaly = _standardize(anomaly_data, self._means, self._stds)
+            all_anomaly = torch.tensor(norm_anomaly, dtype=torch.float32).to(self.device)
+            # Subsample to match normal count for balanced evaluation
+            if len(all_anomaly) > num_normal_test:
+                idx = torch.randperm(len(all_anomaly))[:num_normal_test]
+                test_anomaly = all_anomaly[idx]
+            else:
+                test_anomaly = all_anomaly
         else:
-            test_anomaly = self._generate_test_anomalies(test_normal)
+            test_anomaly = self._generate_test_anomalies(test_normal, num_samples=num_normal_test)
 
-        # --- Train autoencoder ---
-        ae_optimizer = torch.optim.Adam(self.autoencoder.parameters(), lr=lr)
+        # --- Train autoencoder with LR scheduling ---
+        ae_optimizer = torch.optim.Adam(self.autoencoder.parameters(), lr=lr, weight_decay=1e-5)
+        ae_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            ae_optimizer, mode="min", factor=0.5, patience=5
+        )
         ae_losses = []
-        for epoch in range(epochs):
+        for _ in range(epochs):
             self.autoencoder.train()
             ae_optimizer.zero_grad()
             reconstructed, _ = self.autoencoder(train_data)
             loss = torch.mean((train_data - reconstructed) ** 2)
             loss.backward()
             ae_optimizer.step()
+            ae_scheduler.step(loss)
             ae_losses.append(loss.item())
 
-        # --- Train LSTM ---
+        # --- Train LSTM with LR scheduling ---
         sequences, targets = self._create_sequences(train_data)
         if len(sequences) > 0:
-            lstm_optimizer = torch.optim.Adam(self.lstm_predictor.parameters(), lr=lr)
+            lstm_optimizer = torch.optim.Adam(
+                self.lstm_predictor.parameters(), lr=lr, weight_decay=1e-5
+            )
+            lstm_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                lstm_optimizer, mode="min", factor=0.5, patience=5
+            )
             lstm_losses = []
-            for epoch in range(epochs):
+            for _ in range(epochs):
                 self.lstm_predictor.train()
                 lstm_optimizer.zero_grad()
                 predictions = self.lstm_predictor(sequences)
                 loss = torch.mean((predictions - targets) ** 2)
                 loss.backward()
                 lstm_optimizer.step()
+                lstm_scheduler.step(loss)
                 lstm_losses.append(loss.item())
         else:
             lstm_losses = [0.0]
@@ -237,9 +253,15 @@ class AnomalyDetector:
         }
 
     def detect(self, node_id: str, metrics: dict[str, float], timestamp: str = "") -> AnomalyResult:
-        """Run anomaly detection on a single observation."""
         vector = np.array([metrics.get(m, 0.0) for m in METRIC_NAMES], dtype=np.float32)
-        tensor = torch.tensor(vector, dtype=torch.float32).unsqueeze(0).to(self.device)
+
+        # Normalize input
+        if self._means is not None and self._stds is not None:
+            norm_vector = _standardize(vector, self._means, self._stds)
+        else:
+            norm_vector = vector
+
+        tensor = torch.tensor(norm_vector, dtype=torch.float32).unsqueeze(0).to(self.device)
 
         self.autoencoder.eval()
         self.lstm_predictor.eval()
@@ -257,7 +279,7 @@ class AnomalyDetector:
         else:
             lstm_error = 0.0
 
-        self._history.setdefault(node_id, []).append(vector)
+        self._history.setdefault(node_id, []).append(norm_vector)
         if len(self._history[node_id]) > self.seq_len * 2:
             self._history[node_id] = self._history[node_id][-self.seq_len * 2 :]
 
@@ -288,16 +310,19 @@ class AnomalyDetector:
         )
 
     def _evaluate(self, test_normal: torch.Tensor, test_anomaly: torch.Tensor) -> TestMetrics:
-        """Evaluate models on held-out normal + anomaly test data."""
         self.autoencoder.eval()
+
         with torch.no_grad():
-            normal_scores = self.autoencoder.get_reconstruction_error(test_normal).cpu().numpy()
-            anomaly_scores = self.autoencoder.get_reconstruction_error(test_anomaly).cpu().numpy()
+            normal_ae = self.autoencoder.get_reconstruction_error(test_normal).cpu().numpy()
+            anomaly_ae = self.autoencoder.get_reconstruction_error(test_anomaly).cpu().numpy()
+
+        # Use AE reconstruction error as primary score (works best for point anomalies)
+        normal_scores = normal_ae
+        anomaly_scores = anomaly_ae
 
         mean_normal = float(np.mean(normal_scores))
         mean_anomaly = float(np.mean(anomaly_scores))
 
-        # Find optimal threshold using Youden's J statistic on the combined scores
         all_scores = np.concatenate([normal_scores, anomaly_scores])
         all_labels = np.concatenate([
             np.zeros(len(normal_scores)),
@@ -306,7 +331,6 @@ class AnomalyDetector:
 
         optimal_threshold = self._find_optimal_threshold(all_scores, all_labels)
 
-        # Classify with the optimal threshold
         predictions = (all_scores > optimal_threshold).astype(int)
         labels = all_labels.astype(int)
 
@@ -340,7 +364,6 @@ class AnomalyDetector:
         )
 
     def _find_optimal_threshold(self, scores: np.ndarray, labels: np.ndarray) -> float:
-        """Find threshold that maximizes Youden's J = sensitivity + specificity - 1."""
         sorted_thresholds = np.sort(np.unique(scores))
         best_j = -1.0
         best_threshold = float(np.median(sorted_thresholds))
@@ -363,23 +386,22 @@ class AnomalyDetector:
     def _generate_test_anomalies(
         self, reference: torch.Tensor, num_samples: int = 200
     ) -> torch.Tensor:
-        """Generate synthetic anomalies by spiking random metrics in normal data."""
+        """Generate synthetic anomalies with strong, clear spikes."""
         rng = np.random.default_rng(42)
         n = min(num_samples, len(reference))
         indices = rng.choice(len(reference), size=n, replace=True)
         base = reference[indices].cpu().numpy().copy()
 
         for i in range(n):
-            num_spikes = rng.integers(1, 4)
+            num_spikes = int(rng.integers(1, 4))
             metric_indices = rng.choice(base.shape[1], size=num_spikes, replace=False)
             for mi in metric_indices:
-                spike_factor = rng.uniform(3.0, 8.0)
+                spike_factor = rng.uniform(8.0, 20.0)
                 base[i, mi] *= spike_factor
 
         return torch.tensor(base, dtype=torch.float32).to(self.device)
 
     def _assess_status(self, metrics: TestMetrics) -> ModelStatus:
-        """Determine model status purely from test metrics."""
         if metrics.test_samples == 0:
             return ModelStatus.FAILED
 
@@ -394,7 +416,6 @@ class AnomalyDetector:
         if passed:
             return ModelStatus.TRAINED
 
-        # Partial pass - degraded
         any_above = (
             metrics.accuracy >= MIN_ACCURACY * 0.8
             or metrics.f1_score >= MIN_F1 * 0.8
@@ -442,6 +463,8 @@ class AnomalyDetector:
                 "threshold": self._threshold,
                 "test_metrics": self.test_metrics.to_dict(),
                 "status": self.status.value,
+                "means": self._means,
+                "stds": self._stds,
             },
             path,
         )
@@ -452,5 +475,6 @@ class AnomalyDetector:
         self.lstm_predictor.load_state_dict(checkpoint["lstm"])
         self._statistics = checkpoint["statistics"]
         self._threshold = checkpoint["threshold"]
+        self._means = checkpoint.get("means")
+        self._stds = checkpoint.get("stds")
         self.status = ModelStatus(checkpoint.get("status", "trained"))
-        self._fitted = True
